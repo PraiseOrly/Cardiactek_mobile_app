@@ -1,0 +1,25 @@
+# React Native / Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Android
+/android/.gradle/
+/android/app/build/
+/android/build/
+/android/local.properties
+*.iml
+.gradle
+/build
+/.idea
+
+# iOS (if you use Mac)
+/ios/Pods/
+/ios/build/
+
+# VSCode
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db

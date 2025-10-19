@@ -1,7 +1,7 @@
 // File 4: MedicationTrackerScreen.js
 // Medication Tracker with reminders, logging, and drug information
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Switch,
   Modal,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -17,8 +18,7 @@ const MedicationTrackerScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('today'); // 'today', 'schedule', 'history'
   const [selectedMedication, setSelectedMedication] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-
-  const medications = [
+  const [medications, setMedications] = useState([
     {
       id: 1,
       name: 'Metoprolol',
@@ -26,12 +26,14 @@ const MedicationTrackerScreen = ({ navigation }) => {
       frequency: 'Twice daily',
       times: ['8:00 AM', '8:00 PM'],
       taken: [true, false],
+      skipped: [false, false],
       color: '#EF4444',
       reminders: true,
       refillDate: '2025-11-15',
       pillsRemaining: 45,
       purpose: 'Beta-blocker for high blood pressure',
       sideEffects: ['Dizziness', 'Fatigue', 'Cold hands'],
+      precautions: ['Avoid alcohol', 'Monitor blood pressure regularly'],
     },
     {
       id: 2,
@@ -40,12 +42,14 @@ const MedicationTrackerScreen = ({ navigation }) => {
       frequency: 'Once daily',
       times: ['12:00 PM'],
       taken: [false],
+      skipped: [false],
       color: '#3B82F6',
       reminders: true,
       refillDate: '2025-12-01',
       pillsRemaining: 60,
       purpose: 'Blood thinner to prevent clots',
       sideEffects: ['Stomach upset', 'Easy bruising'],
+      precautions: ['Take with food', 'Inform doctor of bleeding'],
     },
     {
       id: 3,
@@ -54,14 +58,45 @@ const MedicationTrackerScreen = ({ navigation }) => {
       frequency: 'Once daily',
       times: ['8:00 PM'],
       taken: [false],
+      skipped: [false],
       color: '#10B981',
       reminders: true,
       refillDate: '2025-11-20',
       pillsRemaining: 30,
       purpose: 'ACE inhibitor for blood pressure',
       sideEffects: ['Dry cough', 'Dizziness'],
+      precautions: ['Stay hydrated', 'Avoid potassium supplements'],
     },
-  ];
+  ]);
+
+  // Reminder notifications
+  useEffect(() => {
+    const checkReminders = () => {
+      const now = new Date();
+      const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+
+      medications.forEach(med => {
+        if (med.reminders) {
+          med.times.forEach((time, index) => {
+            if (time === currentTime && !med.taken[index] && !med.skipped[index]) {
+              Alert.alert(
+                'Medication Reminder',
+                `Time to take ${med.name} (${med.dosage})`,
+                [
+                  { text: 'Mark Taken', onPress: () => handleMarkAsTaken(med.id, index) },
+                  { text: 'Skip', onPress: () => handleMarkAsSkipped(med.id, index) },
+                  { text: 'Remind Later', style: 'cancel' },
+                ]
+              );
+            }
+          });
+        }
+      });
+    };
+
+    const interval = setInterval(checkReminders, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [medications]);
 
   const adherenceData = {
     thisWeek: 92,
@@ -75,7 +110,33 @@ const MedicationTrackerScreen = ({ navigation }) => {
   ];
 
   const handleMarkAsTaken = (medId, timeIndex) => {
+    setMedications(prevMeds =>
+      prevMeds.map(med =>
+        med.id === medId
+          ? {
+              ...med,
+              taken: med.taken.map((taken, idx) => (idx === timeIndex ? true : taken)),
+              skipped: med.skipped.map((skipped, idx) => (idx === timeIndex ? false : skipped)),
+            }
+          : med
+      )
+    );
     console.log(`Marked medication ${medId} at time ${timeIndex} as taken`);
+  };
+
+  const handleMarkAsSkipped = (medId, timeIndex) => {
+    setMedications(prevMeds =>
+      prevMeds.map(med =>
+        med.id === medId
+          ? {
+              ...med,
+              taken: med.taken.map((taken, idx) => (idx === timeIndex ? false : taken)),
+              skipped: med.skipped.map((skipped, idx) => (idx === timeIndex ? true : skipped)),
+            }
+          : med
+      )
+    );
+    console.log(`Marked medication ${medId} at time ${timeIndex} as skipped`);
   };
 
   const handleViewDetails = (medication) => {
@@ -85,7 +146,21 @@ const MedicationTrackerScreen = ({ navigation }) => {
 
   const handleRefillRequest = (medId) => {
     console.log(`Refill requested for medication ${medId}`);
-    alert('Refill request sent to your pharmacy');
+    Alert.alert(
+      'Refill Request',
+      'Your refill request has been sent to your pharmacy. You will receive a confirmation shortly.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleViewLeaflet = (medication) => {
+    console.log(`Viewing leaflet for ${medication.name}`);
+    // In a real app, this would open a PDF or web view with the medication leaflet
+    Alert.alert(
+      'Medication Leaflet',
+      `Detailed information for ${medication.name} would be displayed here. This includes full prescribing information, interactions, and complete side effects.`,
+      [{ text: 'Close' }]
+    );
   };
 
   const renderTodayView = () => (
@@ -95,7 +170,21 @@ const MedicationTrackerScreen = ({ navigation }) => {
         <Text style={styles.adherenceTitle}>Medication Adherence</Text>
         <View style={styles.adherenceStats}>
           <View style={styles.adherenceStat}>
+            <View style={styles.streakContainer}>
+              <Ionicons name="flame" size={24} color="#F59E0B" />
+              <Text style={styles.adherenceValue}>{adherenceData.streak}</Text>
+            </View>
             <Text style={styles.adherenceLabel}>Day Streak</Text>
+          </View>
+          <View style={styles.adherenceDivider} />
+          <View style={styles.adherenceStat}>
+            <Text style={styles.adherenceValue}>{adherenceData.thisWeek}%</Text>
+            <Text style={styles.adherenceLabel}>This Week</Text>
+          </View>
+          <View style={styles.adherenceDivider} />
+          <View style={styles.adherenceStat}>
+            <Text style={styles.adherenceValue}>{adherenceData.thisMonth}%</Text>
+            <Text style={styles.adherenceLabel}>This Month</Text>
           </View>
         </View>
       </View>
@@ -130,16 +219,28 @@ const MedicationTrackerScreen = ({ navigation }) => {
                       {time}
                     </Text>
                   </View>
-                  {!med.taken[index] ? (
-                    <TouchableOpacity
-                      style={styles.markButton}
-                      onPress={() => handleMarkAsTaken(med.id, index)}
-                    >
-                      <Text style={styles.markButtonText}>Mark Taken</Text>
-                    </TouchableOpacity>
-                  ) : (
+                  {!med.taken[index] && !med.skipped[index] ? (
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity
+                        style={styles.markButton}
+                        onPress={() => handleMarkAsTaken(med.id, index)}
+                      >
+                        <Text style={styles.markButtonText}>Mark Taken</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.skipButton}
+                        onPress={() => handleMarkAsSkipped(med.id, index)}
+                      >
+                        <Text style={styles.skipButtonText}>Skip</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : med.taken[index] ? (
                     <View style={styles.takenBadge}>
                       <Text style={styles.takenBadgeText}>Taken</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.skippedBadge}>
+                      <Text style={styles.skippedBadgeText}>Skipped</Text>
                     </View>
                   )}
                 </View>
@@ -175,6 +276,9 @@ const MedicationTrackerScreen = ({ navigation }) => {
                 <Text style={styles.missedMedication}>{missed.medication}</Text>
                 <Text style={styles.missedTime}>{missed.time}</Text>
                 <Text style={styles.missedReason}>Reason: {missed.reason}</Text>
+                <TouchableOpacity style={styles.encouragementButton}>
+                  <Text style={styles.encouragementText}>Get Back on Track</Text>
+                </TouchableOpacity>
               </View>
             </View>
           ))}
@@ -350,6 +454,16 @@ const MedicationTrackerScreen = ({ navigation }) => {
                 </View>
 
                 <View style={styles.detailSection}>
+                  <Text style={styles.detailLabel}>Precautions</Text>
+                  {selectedMedication.precautions.map((precaution, index) => (
+                    <View key={index} style={styles.precautionItem}>
+                      <View style={styles.precautionBullet} />
+                      <Text style={styles.precautionText}>{precaution}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.detailSection}>
                   <Text style={styles.detailLabel}>Supply Status</Text>
                   <View style={styles.supplyInfo}>
                     <View style={styles.supplyItem}>
@@ -363,7 +477,10 @@ const MedicationTrackerScreen = ({ navigation }) => {
                   </View>
                 </View>
 
-                <TouchableOpacity style={styles.detailButton}>
+                <TouchableOpacity
+                  style={styles.detailButton}
+                  onPress={() => handleViewLeaflet(selectedMedication)}
+                >
                   <Ionicons name="document-text-outline" size={20} color="#fff" />
                   <Text style={styles.detailButtonText}>View Full Leaflet</Text>
                 </TouchableOpacity>
@@ -565,6 +682,32 @@ const styles = StyleSheet.create({
     color: '#059669',
     fontWeight: '600',
   },
+  skippedBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  skippedBadgeText: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  skipButton: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  skipButtonText: {
+    fontSize: 12,
+    color: '#D97706',
+    fontWeight: '600',
+  },
   refillAlert: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -612,6 +755,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#B91C1C',
     fontStyle: 'italic',
+  },
+  encouragementButton: {
+    marginTop: 8,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  encouragementText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '600',
   },
   addButton: {
     flexDirection: 'row',
@@ -818,6 +974,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
   },
+  precautionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  precautionBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#3B82F6',
+    marginRight: 12,
+  },
+  precautionText: {
+    fontSize: 14,
+    color: '#374151',
+  },
   supplyInfo: {
     flexDirection: 'row',
     gap: 16,
@@ -862,18 +1034,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default MedicationTrackerScreen; style={styles.adherenceValue}>{adherenceData.thisWeek}%</Text>
-            <Text style={styles.adherenceLabel}>This Week</Text>
-          </View>
-          <View style={styles.adherenceDivider} />
-          <View style={styles.adherenceStat}>
-            <Text style={styles.adherenceValue}>{adherenceData.thisMonth}%</Text>
-            <Text style={styles.adherenceLabel}>This Month</Text>
-          </View>
-          <View style={styles.adherenceDivider} />
-          <View style={styles.adherenceStat}>
-            <View style={styles.streakContainer}>
-              <Ionicons name="flame" size={24} color="#F59E0B" />
-              <Text style={styles.adherenceValue}>{adherenceData.streak}</Text>
-            </View>
-            <Text
+export default MedicationTrackerScreen;
